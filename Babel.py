@@ -10,15 +10,18 @@ from ase.io import read
 from ase.visualize.plot import plot_atoms
 from ase.eos import EquationOfState
 
-# --- CORRECTED PySCF IMPORTS ---
+# --- PySCF IMPORTS ---
 from pyscf import gto, dft
 from pyscf.pbc import gto as pbc_gto
 from pyscf.pbc import dft as pbc_dft
 
-st.set_page_config(page_title="Babel - Advanced Calculator", layout="wide")
+st.set_page_config(page_title="Babel - DFT Calculator", layout="wide")
 
-st.title("⚛️ Babel: Advanced Quantum Chemistry Calculator")
-st.markdown("Calculate electronic properties, equations of state, and define custom K-point grids. (Dr. Raad Haleoot. Mustansiriyah University")
+st.title("⚛️ Babel: Quantum Chemistry & Solid-State Calculator")
+st.markdown("Calculate electronic properties, structure visualizations, and equations of state.(Dr. Raad Haleoot. Mustansiriyah University)")
+
+# Detect if running on Streamlit Cloud (Web Environment)
+IS_CLOUD = os.getenv("SERVER_SOFTWARE", "").startswith("streamlit") or "STREAMLIT_SERVER_PORT" in os.environ
 
 # --- SIDEBAR: PARAMETERS & WORKFLOW ---
 st.sidebar.header("1. Upload Structure")
@@ -27,20 +30,30 @@ uploaded_file = st.sidebar.file_uploader("Upload File (xyz, cif, poscar)", type=
 st.sidebar.header("2. DFT Parameters")
 functional = st.sidebar.selectbox("Exchange-Correlation", ["lda", "pbe", "b3lyp"])
 
-# Split basis sets for clarity
+# Basis sets selection
 st.sidebar.markdown("**Basis Sets**")
-basis_solid = st.sidebar.selectbox("For Solids (Periodic)", ["gth-szv", "gth-dzv", "gth-dzvp"], help="GTH basis sets are required for periodic pseudopotentials.")
+basis_solid = st.sidebar.selectbox("For Solids (Periodic)", ["gth-szv", "gth-dzv", "gth-dzvp"], help="GTH basis sets are required for periodic systems.")
 basis_mol = st.sidebar.selectbox("For Molecules (Gas Phase)", ["sto-3g", "3-21g", "6-31g"])
 
 spin = st.sidebar.number_input("Spin (Unpaired Electrons)", min_value=0, value=0)
 
+# --- K-POINT GRID CONTROL ---
 st.sidebar.header("3. K-Point Grid (Solids)")
-st.sidebar.markdown("*(Ignored for molecules)*")
-col_k1, col_k2, col_k3 = st.sidebar.columns(3)
-kx = col_k1.number_input("kx", min_value=1, value=1)
-ky = col_k2.number_input("ky", min_value=1, value=1)
-kz = col_k3.number_input("kz", min_value=1, value=1)
-kpts_grid = [kx, ky, kz]
+
+if IS_CLOUD:
+    st.sidebar.warning("🌐 Web Mode: K-mesh is limited to 1x1x1 or 2x2x2 to prevent server memory crashes.")
+    k_choice = st.sidebar.selectbox("Select K-Mesh", ["1x1x1 (Gamma Point)", "2x2x2 (Coarse Mesh)"])
+    if "1x1x1" in k_choice:
+        kpts_grid = [1, 1, 1]
+    else:
+        kpts_grid = [2, 2, 2]
+else:
+    st.sidebar.info("💻 Local Mode (WSL): Custom K-grid enabled.")
+    col_k1, col_k2, col_k3 = st.sidebar.columns(3)
+    kx = col_k1.number_input("kx", min_value=1, value=1)
+    ky = col_k2.number_input("ky", min_value=1, value=1)
+    kz = col_k3.number_input("kz", min_value=1, value=1)
+    kpts_grid = [int(kx), int(ky), int(kz)]
 
 st.sidebar.header("4. Choose Workflow")
 workflow = st.sidebar.radio("What would you like to calculate?", [
@@ -66,26 +79,24 @@ def build_pbc_cell(atoms, basis):
     symbols = atoms.get_chemical_symbols()
     atom_str = "".join([f"{sym} {pos[0]} {pos[1]} {pos[2]}\n" for sym, pos in zip(symbols, positions)])
     
-    # Use explicitly imported pbc_gto
     cell = pbc_gto.Cell()
     cell.atom = atom_str
     cell.a = atoms.get_cell()
     cell.basis = basis
-    cell.pseudo = 'gth-pade' # Standard pseudopotential to match GTH basis
+    cell.pseudo = 'gth-pade'
     cell.spin = spin
     cell.build()
     return cell
 
 def run_dft(cell_or_mol, is_periodic, kpts_grid):
-    """Runs DFT using explicitly imported modules"""
     if is_periodic:
         if kpts_grid == [1, 1, 1]:
-            mf = pbc_dft.RKS(cell_or_mol) # Gamma point only
+            mf = pbc_dft.RKS(cell_or_mol)
         else:
             kpts = cell_or_mol.make_kpts(kpts_grid)
-            mf = pbc_dft.KRKS(cell_or_mol, kpts) # K-point mesh
+            mf = pbc_dft.KRKS(cell_or_mol, kpts)
     else:
-        mf = dft.RKS(cell_or_mol) # Molecule
+        mf = dft.RKS(cell_or_mol)
         
     mf.xc = functional
     e_tot = mf.kernel()
@@ -103,10 +114,8 @@ if uploaded_file is not None:
         is_periodic = any(atoms.pbc)
         hartree_to_ev = 27.2114
         
-        # Automatically select the correct basis set based on the file type
         active_basis = basis_solid if is_periodic else basis_mol
         
-        # Display Basic Info
         col1, col2 = st.columns(2)
         with col1:
             st.write(f"**Formula:** {atoms.get_chemical_formula()} | **Atoms:** {len(atoms)}")
@@ -114,7 +123,7 @@ if uploaded_file is not None:
         with col2:
             st.write(f"**Active Basis Set:** `{active_basis}`")
             if is_periodic:
-                st.write(f"**K-Points:** {kpts_grid[0]}x{kpts_grid[1]}x{kpts_grid[2]}")
+                st.write(f"**Selected K-Points:** {kpts_grid[0]}x{kpts_grid[1]}x{kpts_grid[2]}")
         st.divider()
 
         # ---------------------------------------------------------
@@ -165,7 +174,7 @@ if uploaded_file is not None:
                 st.error("DOS requires a periodic crystal.")
             else:
                 if st.button("📈 Calculate DOS"):
-                    with st.spinner(f"Running DOS calculation..."):
+                    with st.spinner("Running DOS calculation..."):
                         cell = build_pbc_cell(atoms, active_basis)
                         mf, _ = run_dft(cell, is_periodic, kpts_grid)
                         
