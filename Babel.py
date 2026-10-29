@@ -17,11 +17,8 @@ from pyscf.pbc import dft as pbc_dft
 
 st.set_page_config(page_title="Babel - DFT Calculator", layout="wide")
 
-st.title("⚛️ Babel: Quantum Chemistry & Solid-State Calculator")
-st.markdown("Calculate electronic properties, structure visualizations, and equations of state.(Dr. Raad Haleoot. Mustansiriyah University)")
-
-# Detect if running on Streamlit Cloud (Web Environment)
-IS_CLOUD = os.getenv("SERVER_SOFTWARE", "").startswith("streamlit") or "STREAMLIT_SERVER_PORT" in os.environ
+st.title("⚛️ Babel: Web Quantum Chemistry & Solid-State Calculator")
+st.markdown("Calculate electronic properties, structure visualizations, and equations of state directly in your web browser.(Dr. Raad Haleoot. Mustansiriyah University)")
 
 # --- SIDEBAR: PARAMETERS & WORKFLOW ---
 st.sidebar.header("1. Upload Structure")
@@ -37,23 +34,15 @@ basis_mol = st.sidebar.selectbox("For Molecules (Gas Phase)", ["sto-3g", "3-21g"
 
 spin = st.sidebar.number_input("Spin (Unpaired Electrons)", min_value=0, value=0)
 
-# --- K-POINT GRID CONTROL ---
+# --- FIXED K-POINT GRID CONTROL FOR WEB ---
 st.sidebar.header("3. K-Point Grid (Solids)")
+st.sidebar.info("🌐 K-mesh is capped to preserve server memory stability.")
+k_choice = st.sidebar.selectbox("Select K-Mesh", ["1x1x1 (Gamma Point)", "2x2x2 (Coarse Mesh)"])
 
-if IS_CLOUD:
-    st.sidebar.warning("🌐 Web Mode: K-mesh is limited to 1x1x1 or 2x2x2 to prevent server memory crashes.")
-    k_choice = st.sidebar.selectbox("Select K-Mesh", ["1x1x1 (Gamma Point)", "2x2x2 (Coarse Mesh)"])
-    if "1x1x1" in k_choice:
-        kpts_grid = [1, 1, 1]
-    else:
-        kpts_grid = [2, 2, 2]
+if "1x1x1" in k_choice:
+    kpts_grid = [1, 1, 1]
 else:
-    st.sidebar.info("💻 Local Mode (WSL): Custom K-grid enabled.")
-    col_k1, col_k2, col_k3 = st.sidebar.columns(3)
-    kx = col_k1.number_input("kx", min_value=1, value=1)
-    ky = col_k2.number_input("ky", min_value=1, value=1)
-    kz = col_k3.number_input("kz", min_value=1, value=1)
-    kpts_grid = [int(kx), int(ky), int(kz)]
+    kpts_grid = [2, 2, 2]
 
 st.sidebar.header("4. Choose Workflow")
 workflow = st.sidebar.radio("What would you like to calculate?", [
@@ -72,7 +61,7 @@ def get_image_download_link(fig, filename="plot.png"):
 
 def get_csv_download_link(dataframe, filename="data.csv"):
     csv = dataframe.to_csv(index=False).encode('utf-8')
-    return st.download_button(label=f"💾 Download Data ({filename})", data=csv, file_name=filename, mime="text/csv")
+    return st.download_button(label=f"💾 Download Data ({filename})", data=csv, file_name=text/csv)
 
 def build_pbc_cell(atoms, basis):
     positions = atoms.get_positions()
