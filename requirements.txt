@@ -1,0 +1,7 @@
+streamlit
+ase
+pyscf
+numpy
+matplotlib
+scipy
+pandas
